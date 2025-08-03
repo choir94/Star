@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Catch the Ethos Logo</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <!-- preload logo to reduce pop-in -->
+  <!-- preload assets -->
   <link rel="preload" as="image" href="https://raw.githubusercontent.com/choir94/Star/main/Ethos.png">
   <style>
     *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;}
@@ -12,12 +12,18 @@
     h1 {margin:1rem 0; font-size:1.8rem; text-align:center;}
     #game {position:relative; width:320px; height:480px; background:#0c234d; border:4px solid #5fa8ff; border-radius:12px; overflow:hidden;}
     #player {position:absolute; bottom:10px; left:50%; transform:translateX(-50%); width:60px; height:12px; background:#ffe066; border-radius:6px;}
-    .star {position:absolute; pointer-events:none; will-change:top,left; user-select:none;}
+    .falling {position:absolute; pointer-events:none; display:flex; flex-direction:column; align-items:center; gap:2px; user-select:none; will-change:top,left;}
+    .logo-img {width:24px; height:24px; object-fit:contain; display:block;}
+    .label {font-size:10px; font-weight:700; letter-spacing:0.5px;}
+    .bomb {width:24px; height:24px; position:relative; display:flex; justify-content:center; align-items:center;}
+    .bomb-circle {width:20px; height:20px; background:#222; border-radius:50%; position:relative; box-shadow:0 0 10px rgba(255,0,0,0.6);}
+    .bomb-fuse {position:absolute; top:-6px; left:50%; transform:translateX(-50%); width:4px; height:8px; background:linear-gradient(135deg,#f5e663,#ffae00); border-radius:2px;}
+    .bomb-glow {position:absolute; inset:0; border-radius:50%; box-shadow:0 0 12px rgba(255,50,50,0.7);}
     #scoreboard {margin-top:0.75rem; display:flex; gap:1rem; font-size:.9rem; flex-wrap:wrap; justify-content:center;}
     .btn {margin-top:1rem; padding:.5rem 1rem; background:#5fa8ff; border:none; border-radius:6px; cursor:pointer; color:#fff; font-weight:600;}
     .btn:active {transform:scale(.97);}
     #message {margin-top:0.5rem; min-height:1.2em; text-align:center;}
-    .small {font-size:0.7rem; opacity:0.85; margin-top:4px;}
+    .small {font-size:0.7rem; opacity:0.85; margin-top:4px; text-align:center;}
     #code-box {margin-top:0.75rem; background:rgba(255,255,255,0.1); padding:10px 16px; border-radius:8px; display:inline-flex; gap:8px; align-items:center; font-family:monospace;}
     #code {letter-spacing:1px; font-weight:700;}
     #copy {background:#fff;color:#0c234d;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;}
@@ -41,10 +47,12 @@
       <div id="code">—</div>
       <button id="copy">Copy</button>
     </div>
-    <div id="code-msg">Simpan kode ini, hanya diberikan satu kali per sesi.</div>
+    <div id="code-msg">Save this code, only awarded once per session.</div>
   </div>
   <button class="btn" id="restart">Restart</button>
-  <div class="small">Gerakkan paddle dengan mouse/sentuh. Tangkap logo sebelum 5 kali terlewat. Dapatkan kode acak saat mencapai 30 tangkapan.</div>
+  <div class="small">
+    Move the paddle with mouse or touch. Catch Ethos logos (with "Code") but avoid bombs. Reach 30 logo catches to get a random code. Catching a bomb ends the game immediately.
+  </div>
 
   <script>
     const game = document.getElementById("game");
@@ -61,10 +69,10 @@
     const gameWidth = 320;
     let score = 0;
     let missed = 0;
-    let stars = [];
+    let items = []; // logos and bombs
     let gameOver = false;
     let spawnInterval;
-    let rewarded = false; // apakah sudah dapat kode
+    let rewarded = false;
     let moveSpeed = 4;
 
     function updatePlayer(x) {
@@ -79,7 +87,7 @@
       if (e.touches[0]) updatePlayer(e.touches[0].clientX);
     }, {passive:true});
 
-    function randomCode(length = 8) {
+    function randomCode(length = 10) {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
       let array = new Uint8Array(length);
       crypto.getRandomValues(array);
@@ -96,36 +104,98 @@
       const code = randomCode(10);
       codeElem.textContent = code;
       codeContainer.style.display = "block";
-      message.textContent = "🎉 Kamu mendapatkan kode karena mencapai 30 tangkapan!";
-      // optional: bisa juga simpan ke localStorage kalau mau persist antar reload
+      message.textContent = "🎉 Congrats! You earned a code for catching 30 logos!";
     }
 
-    function spawnStar() {
-      if (gameOver) return;
-      const star = document.createElement("img");
-      star.src = "https://raw.githubusercontent.com/choir94/Star/main/Ethos.png";
-      star.alt = "Ethos logo";
-      star.classList.add("star");
-      star.style.width = "24px";
-      star.style.height = "24px";
-      star.style.objectFit = "contain";
+    function createLogoItem() {
+      const wrapper = document.createElement("div");
+      wrapper.classList.add("falling");
+      wrapper.dataset.type = "logo";
+
+      const label = document.createElement("div");
+      label.className = "label";
+      label.textContent = "Code";
+
+      const img = document.createElement("img");
+      img.src = "https://raw.githubusercontent.com/choir94/Star/main/Ethos.png";
+      img.alt = "Ethos logo";
+      img.className = "logo-img";
+
+      wrapper.appendChild(label);
+      wrapper.appendChild(img);
+
       const x = Math.random() * (gameWidth - 24);
-      star.style.left = x + "px";
-      star.style.top = "-30px";
-      game.appendChild(star);
-      stars.push({el: star, y: -30, speed: 1 + Math.random()*2});
-      star.onerror = () => {
+      wrapper.style.left = x + "px";
+      wrapper.style.top = "-40px";
+      game.appendChild(wrapper);
+      items.push({el: wrapper, y: -40, speed: 1 + Math.random()*2, type: "logo"});
+      img.onerror = () => {
+        img.style.display = "none";
         const fallback = document.createElement("div");
-        fallback.classList.add("star");
         fallback.style.width = "16px";
         fallback.style.height = "16px";
         fallback.style.background = "#ffd700";
         fallback.style.borderRadius = "50%";
-        fallback.style.left = star.style.left;
-        fallback.style.top = star.style.top;
-        game.replaceChild(fallback, star);
-        stars = stars.map(s => s.el === star ? {el: fallback, y: s.y, speed: s.speed} : s);
+        wrapper.appendChild(fallback);
       };
+    }
+
+    function createBombItem() {
+      const wrapper = document.createElement("div");
+      wrapper.classList.add("falling");
+      wrapper.dataset.type = "bomb";
+
+      const bomb = document.createElement("div");
+      bomb.className = "bomb";
+      const circle = document.createElement("div");
+      circle.className = "bomb-circle";
+      const fuse = document.createElement("div");
+      fuse.className = "bomb-fuse";
+      const glow = document.createElement("div");
+      glow.className = "bomb-glow";
+      bomb.appendChild(glow);
+      bomb.appendChild(circle);
+      bomb.appendChild(fuse);
+      wrapper.appendChild(bomb);
+
+      const x = Math.random() * (gameWidth - 24);
+      wrapper.style.left = x + "px";
+      wrapper.style.top = "-40px";
+      game.appendChild(wrapper);
+      items.push({el: wrapper, y: -40, speed: 1 + Math.random()*2, type: "bomb"});
+    }
+
+    function spawnItem() {
+      if (gameOver) return;
+      // 1 in 5 chance of bomb, else logo
+      if (Math.random() < 0.2) {
+        createBombItem();
+      } else {
+        createLogoItem();
+      }
+    }
+
+    function endGame(caughtBomb = false) {
+      gameOver = true;
+      clearInterval(spawnInterval);
+      let msg = "";
+      if (caughtBomb) {
+        msg = "💥 You caught a bomb! Game Over!";
+      } else {
+        msg = "Game Over! Final score: " + score;
+      }
+      const prevHigh = parseInt(localStorage.getItem("highScore") || "0", 10);
+      if (!caughtBomb) {
+        if (score > prevHigh) {
+          localStorage.setItem("highScore", score);
+          msg += " 🎉 New High Score!";
+        } else {
+          msg += " (High Score: " + prevHigh + ")";
+        }
+      } else {
+        msg += " (High Score: " + prevHigh + ")";
+      }
+      message.textContent = msg;
     }
 
     function step() {
@@ -133,31 +203,50 @@
       const playerRect = player.getBoundingClientRect();
       const gameRect = game.getBoundingClientRect();
 
-      for (let i = stars.length -1; i >=0; i--) {
-        const s = stars[i];
-        s.y += s.speed;
-        s.el.style.top = s.y + "px";
+      for (let i = items.length -1; i >=0; i--) {
+        const obj = items[i];
+        obj.y += obj.speed;
+        obj.el.style.top = obj.y + "px";
 
-        const starRect = s.el.getBoundingClientRect();
-        if (starRect.bottom >= playerRect.top &&
-            starRect.left + 4 < playerRect.right &&
-            starRect.right - 4 > playerRect.left) {
-          score += 1;
-          scoreEl.textContent = score;
-          s.el.remove();
-          stars.splice(i,1);
-          // reward check
-          if (score >= 30 && !rewarded) {
-            giveRewardCode();
+        const itemRect = obj.el.getBoundingClientRect();
+        // collision with player
+        if (
+          itemRect.bottom >= playerRect.top &&
+          itemRect.left + 4 < playerRect.right &&
+          itemRect.right - 4 > playerRect.left
+        ) {
+          if (obj.type === "logo") {
+            score += 1;
+            scoreEl.textContent = score;
+            // reward condition
+            if (score >= 30 && !rewarded) {
+              giveRewardCode();
+            }
+          } else if (obj.type === "bomb") {
+            endGame(true);
+            return;
           }
+          obj.el.remove();
+          items.splice(i,1);
           continue;
         }
-        if (s.y > gameRect.height) {
+
+        // logo missed
+        if (obj.type === "logo" && obj.y > gameRect.height) {
           missed += 1;
           missedEl.textContent = missed;
-          s.el.remove();
-          stars.splice(i,1);
-          if (missed >=5) endGame();
+          obj.el.remove();
+          items.splice(i,1);
+          if (missed >= 5) {
+            endGame(false);
+            return;
+          }
+        }
+
+        // bomb falling off bottom just disappears
+        if (obj.type === "bomb" && obj.y > gameRect.height) {
+          obj.el.remove();
+          items.splice(i,1);
         }
       }
 
@@ -168,36 +257,19 @@
       requestAnimationFrame(step);
     }
 
-    function endGame() {
-      gameOver = true;
-      let msg = "Game Over! Final score: " + score;
-      // high score logic
-      const prevHigh = parseInt(localStorage.getItem("highScore") || "0", 10);
-      if (score > prevHigh) {
-        localStorage.setItem("highScore", score);
-        msg += " 🎉 New High Score!";
-      } else {
-        msg += " (High Score: " + prevHigh + ")";
-      }
-      message.textContent = msg;
-      clearInterval(spawnInterval);
-    }
-
     function reset() {
       score = 0;
       missed = 0;
+      items.forEach(i => i.el.remove());
+      items = [];
+      gameOver = false;
+      rewarded = false;
       scoreEl.textContent = score;
       missedEl.textContent = missed;
       message.textContent = "";
-      gameOver = false;
-      rewarded = false;
       codeContainer.style.display = "none";
-      stars.forEach(s => s.el.remove());
-      stars = [];
-      moveSpeed = 4;
       clearInterval(spawnInterval);
-      spawnInterval = setInterval(spawnStar, 800);
-      // update high score display
+      spawnInterval = setInterval(spawnItem, 800);
       highScoreEl.textContent = localStorage.getItem("highScore") || "0";
       requestAnimationFrame(step);
     }
@@ -213,7 +285,7 @@
       });
     });
 
-    // initialize
+    // start
     reset();
   </script>
 </body>
