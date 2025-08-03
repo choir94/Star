@@ -5,12 +5,24 @@
   <title>Catch the Ethos Logo</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <!-- preload assets -->
+  <link rel="preload" as="image" href="https://raw.githubusercontent.com/choir94/Star/main/Ethos2.png">
   <link rel="preload" as="image" href="https://raw.githubusercontent.com/choir94/Star/main/Ethos.png">
   <style>
     *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;}
     body {background: linear-gradient(135deg,#0f1e3a,#1f3f8f); color:#fff; display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:1rem;}
     h1 {margin:1rem 0; font-size:1.8rem; text-align:center;}
-    #game {position:relative; width:320px; height:480px; background:#0c234d; border:4px solid #5fa8ff; border-radius:12px; overflow:hidden;}
+    #game {
+      position:relative;
+      width:320px;
+      height:480px;
+      background: 
+        linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
+        url("https://raw.githubusercontent.com/choir94/Star/main/Ethos2.png") center/cover no-repeat;
+      border:4px solid #5fa8ff;
+      border-radius:12px;
+      overflow:hidden;
+      box-shadow:0 20px 40px -10px rgba(31,63,143,0.6);
+    }
     #player {position:absolute; bottom:10px; left:50%; transform:translateX(-50%); width:60px; height:12px; background:#ffe066; border-radius:6px;}
     .falling {position:absolute; pointer-events:none; display:flex; flex-direction:column; align-items:center; gap:2px; user-select:none; will-change:top,left;}
     .logo-img {width:24px; height:24px; object-fit:contain; display:block;}
@@ -51,7 +63,7 @@
   </div>
   <button class="btn" id="restart">Restart</button>
   <div class="small">
-    Move the paddle with mouse or touch. Catch Ethos logos (with "Code") but avoid bombs. Reach 30 logo catches to get a random code. Catching a bomb ends the game immediately.
+    Move the paddle with mouse or touch. Catch Ethos logos (with "Code") but avoid bombs. Reach 30 logo catches to earn a random code. Catching a bomb ends the game immediately.
   </div>
 
   <script>
@@ -73,7 +85,6 @@
     let gameOver = false;
     let spawnInterval;
     let rewarded = false;
-    let moveSpeed = 4;
 
     function updatePlayer(x) {
       const rect = game.getBoundingClientRect();
@@ -147,12 +158,12 @@
 
       const bomb = document.createElement("div");
       bomb.className = "bomb";
+      const glow = document.createElement("div");
+      glow.className = "bomb-glow";
       const circle = document.createElement("div");
       circle.className = "bomb-circle";
       const fuse = document.createElement("div");
       fuse.className = "bomb-fuse";
-      const glow = document.createElement("div");
-      glow.className = "bomb-glow";
       bomb.appendChild(glow);
       bomb.appendChild(circle);
       bomb.appendChild(fuse);
@@ -167,7 +178,6 @@
 
     function spawnItem() {
       if (gameOver) return;
-      // 1 in 5 chance of bomb, else logo
       if (Math.random() < 0.2) {
         createBombItem();
       } else {
@@ -209,7 +219,7 @@
         obj.el.style.top = obj.y + "px";
 
         const itemRect = obj.el.getBoundingClientRect();
-        // collision with player
+
         if (
           itemRect.bottom >= playerRect.top &&
           itemRect.left + 4 < playerRect.right &&
@@ -218,7 +228,6 @@
           if (obj.type === "logo") {
             score += 1;
             scoreEl.textContent = score;
-            // reward condition
             if (score >= 30 && !rewarded) {
               giveRewardCode();
             }
@@ -231,7 +240,6 @@
           continue;
         }
 
-        // logo missed
         if (obj.type === "logo" && obj.y > gameRect.height) {
           missed += 1;
           missedEl.textContent = missed;
@@ -243,15 +251,10 @@
           }
         }
 
-        // bomb falling off bottom just disappears
         if (obj.type === "bomb" && obj.y > gameRect.height) {
           obj.el.remove();
           items.splice(i,1);
         }
-      }
-
-      if (score && score % 10 === 0) {
-        moveSpeed = Math.min(8, 4 + Math.floor(score / 10));
       }
 
       requestAnimationFrame(step);
@@ -285,7 +288,7 @@
       });
     });
 
-    // start
+    // start game
     reset();
   </script>
 </body>
