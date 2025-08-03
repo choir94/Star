@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Catch the Ethos Logo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- preload logo to reduce pop-in -->
+  <link rel="preload" as="image" href="https://raw.githubusercontent.com/choir94/Star/main/Ethos.png">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;}
+    body {background: linear-gradient(135deg,#0f1e3a,#1f3f8f); color:#fff; display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:1rem;}
+    h1 {margin:1rem 0; font-size:1.8rem; text-align:center;}
+    #game {position:relative; width:320px; height:480px; background:#0c234d; border:4px solid #5fa8ff; border-radius:12px; overflow:hidden;}
+    #player {position:absolute; bottom:10px; left:50%; transform:translateX(-50%); width:60px; height:12px; background:#ffe066; border-radius:6px;}
+    .star {position:absolute; pointer-events:none; will-change:top,left; user-select:none;}
+    #scoreboard {margin-top:0.75rem; display:flex; gap:1rem; font-size:.9rem; flex-wrap:wrap; justify-content:center;}
+    .btn {margin-top:1rem; padding:.5rem 1rem; background:#5fa8ff; border:none; border-radius:6px; cursor:pointer; color:#fff; font-weight:600;}
+    .btn:active {transform:scale(.97);}
+    #message {margin-top:0.5rem; min-height:1.2em; text-align:center;}
+    .small {font-size:0.7rem; opacity:0.85; margin-top:4px;}
+    #code-box {margin-top:0.75rem; background:rgba(255,255,255,0.1); padding:10px 16px; border-radius:8px; display:inline-flex; gap:8px; align-items:center; font-family:monospace;}
+    #code {letter-spacing:1px; font-weight:700;}
+    #copy {background:#fff;color:#0c234d;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;}
+    #code-msg {margin-top:6px;font-size:0.75rem;opacity:0.9;}
+  </style>
+</head>
+<body>
+  <h1>Catch the Ethos Logo</h1>
+  <div id="game">
+    <div id="player"></div>
+  </div>
+  <div id="scoreboard">
+    <div>Score: <span id="score">0</span></div>
+    <div>Missed: <span id="missed">0</span>/5</div>
+    <div>High Score: <span id="highScore">0</span></div>
+  </div>
+  <div id="message"></div>
+  <div id="code-container" style="display:none;">
+    <div id="code-box">
+      <div>🎁 Your Code:</div>
+      <div id="code">—</div>
+      <button id="copy">Copy</button>
+    </div>
+    <div id="code-msg">Simpan kode ini, hanya diberikan satu kali per sesi.</div>
+  </div>
+  <button class="btn" id="restart">Restart</button>
+  <div class="small">Gerakkan paddle dengan mouse/sentuh. Tangkap logo sebelum 5 kali terlewat. Dapatkan kode acak saat mencapai 30 tangkapan.</div>
+
+  <script>
+    const game = document.getElementById("game");
+    const player = document.getElementById("player");
+    const scoreEl = document.getElementById("score");
+    const missedEl = document.getElementById("missed");
+    const highScoreEl = document.getElementById("highScore");
+    const message = document.getElementById("message");
+    const restart = document.getElementById("restart");
+    const codeContainer = document.getElementById("code-container");
+    const codeElem = document.getElementById("code");
+    const copyBtn = document.getElementById("copy");
+
+    const gameWidth = 320;
+    let score = 0;
+    let missed = 0;
+    let stars = [];
+    let gameOver = false;
+    let spawnInterval;
+    let rewarded = false; // apakah sudah dapat kode
+    let moveSpeed = 4;
+
+    function updatePlayer(x) {
+      const rect = game.getBoundingClientRect();
+      let relative = x - rect.left;
+      relative = Math.max(30, Math.min(gameWidth - 30, relative));
+      player.style.left = relative + "px";
+    }
+
+    game.addEventListener("mousemove", e => updatePlayer(e.clientX));
+    game.addEventListener("touchmove", e => {
+      if (e.touches[0]) updatePlayer(e.touches[0].clientX);
+    }, {passive:true});
+
+    function randomCode(length = 8) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let array = new Uint8Array(length);
+      crypto.getRandomValues(array);
+      let code = '';
+      for (let i = 0; i < length; i++) {
+        code += chars[array[i] % chars.length];
+      }
+      return code;
+    }
+
+    function giveRewardCode() {
+      if (rewarded) return;
+      rewarded = true;
+      const code = randomCode(10);
+      codeElem.textContent = code;
+      codeContainer.style.display = "block";
+      message.textContent = "🎉 Kamu mendapatkan kode karena mencapai 30 tangkapan!";
+      // optional: bisa juga simpan ke localStorage kalau mau persist antar reload
+    }
+
+    function spawnStar() {
+      if (gameOver) return;
+      const star = document.createElement("img");
+      star.src = "https://raw.githubusercontent.com/choir94/Star/main/Ethos.png";
+      star.alt = "Ethos logo";
+      star.classList.add("star");
+      star.style.width = "24px";
+      star.style.height = "24px";
+      star.style.objectFit = "contain";
+      const x = Math.random() * (gameWidth - 24);
+      star.style.left = x + "px";
+      star.style.top = "-30px";
+      game.appendChild(star);
+      stars.push({el: star, y: -30, speed: 1 + Math.random()*2});
+      star.onerror = () => {
+        const fallback = document.createElement("div");
+        fallback.classList.add("star");
+        fallback.style.width = "16px";
+        fallback.style.height = "16px";
+        fallback.style.background = "#ffd700";
+        fallback.style.borderRadius = "50%";
+        fallback.style.left = star.style.left;
+        fallback.style.top = star.style.top;
+        game.replaceChild(fallback, star);
+        stars = stars.map(s => s.el === star ? {el: fallback, y: s.y, speed: s.speed} : s);
+      };
+    }
+
+    function step() {
+      if (gameOver) return;
+      const playerRect = player.getBoundingClientRect();
+      const gameRect = game.getBoundingClientRect();
+
+      for (let i = stars.length -1; i >=0; i--) {
+        const s = stars[i];
+        s.y += s.speed;
+        s.el.style.top = s.y + "px";
+
+        const starRect = s.el.getBoundingClientRect();
+        if (starRect.bottom >= playerRect.top &&
+            starRect.left + 4 < playerRect.right &&
+            starRect.right - 4 > playerRect.left) {
+          score += 1;
+          scoreEl.textContent = score;
+          s.el.remove();
+          stars.splice(i,1);
+          // reward check
+          if (score >= 30 && !rewarded) {
+            giveRewardCode();
+          }
+          continue;
+        }
+        if (s.y > gameRect.height) {
+          missed += 1;
+          missedEl.textContent = missed;
+          s.el.remove();
+          stars.splice(i,1);
+          if (missed >=5) endGame();
+        }
+      }
+
+      if (score && score % 10 === 0) {
+        moveSpeed = Math.min(8, 4 + Math.floor(score / 10));
+      }
+
+      requestAnimationFrame(step);
+    }
+
+    function endGame() {
+      gameOver = true;
+      let msg = "Game Over! Final score: " + score;
+      // high score logic
+      const prevHigh = parseInt(localStorage.getItem("highScore") || "0", 10);
+      if (score > prevHigh) {
+        localStorage.setItem("highScore", score);
+        msg += " 🎉 New High Score!";
+      } else {
+        msg += " (High Score: " + prevHigh + ")";
+      }
+      message.textContent = msg;
+      clearInterval(spawnInterval);
+    }
+
+    function reset() {
+      score = 0;
+      missed = 0;
+      scoreEl.textContent = score;
+      missedEl.textContent = missed;
+      message.textContent = "";
+      gameOver = false;
+      rewarded = false;
+      codeContainer.style.display = "none";
+      stars.forEach(s => s.el.remove());
+      stars = [];
+      moveSpeed = 4;
+      clearInterval(spawnInterval);
+      spawnInterval = setInterval(spawnStar, 800);
+      // update high score display
+      highScoreEl.textContent = localStorage.getItem("highScore") || "0";
+      requestAnimationFrame(step);
+    }
+
+    restart.addEventListener("click", reset);
+    copyBtn.addEventListener("click", () => {
+      const txt = codeElem.textContent;
+      if (!txt) return;
+      navigator.clipboard.writeText(txt).then(() => {
+        const original = copyBtn.textContent;
+        copyBtn.textContent = "Copied!";
+        setTimeout(() => { copyBtn.textContent = original; }, 1000);
+      });
+    });
+
+    // initialize
+    reset();
+  </script>
+</body>
+</html>
